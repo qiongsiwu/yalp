@@ -1,0 +1,23 @@
+name: x86-Darwin
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: macos-latest
+
+    steps:
+    - uses: actions/checkout@v1
+    - name: Install Dependencies
+      run: |
+        brew install llvm@9
+        pip install lit
+    - name: Build and Test
+      run: |
+        mkdir build
+        cd build
+        cmake -DLT_LLVM_INSTALL_DIR="/usr/local/opt/llvm/" -DCMAKE_BUILD_TYPE=Release ..
+        make -j4
+        make test
+        lit test/

@@ -1,4 +1,7 @@
 # yalp
+[![Actions Status](https://github.com/qiongsiwu/yalp/workflows/x86-ubuntu/badge.svg)](https://github.com/qiongsiwu/yalp/actions)
+[![Actions Status](https://github.com/qiongsiwu/yalp/workflows/x86-Darwin/badge.svg)](https://github.com/qiongsiwu/yalp/actions)
+
 Yet another repository for LLVM passes
 
 After many false starts and failed attempts, finally I am having a collection of out of tree llvm passes using the new pass manager. 
