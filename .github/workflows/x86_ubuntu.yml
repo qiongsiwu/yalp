@@ -1,0 +1,26 @@
+name: x86-ubuntu
+
+on: [push]
+
+jobs:
+  build:
+
+    runs-on: ubuntu-18.04
+
+    steps:
+    - uses: actions/checkout@v1
+    - name: Install Dependencies
+      run: |
+        wget -O - https://apt.llvm.org/llvm-snapshot.gpg.key | sudo apt-key add -
+        sudo apt-add-repository "deb http://apt.llvm.org/bionic/ llvm-toolchain-bionic-9 main"
+        sudo apt-get update
+        sudo apt-get install -y llvm-9 llvm-9-dev clang-9 llvm-9-tools
+        sudo pip install lit
+    - name: Build and Test
+      run: |
+        mkdir build
+        cd build 
+        cmake -DLT_LLVM_INSTALL_DIR="/usr/lib/llvm-9/" -DCMAKE_BUILD_TYPE=Release .. 
+        make -j4 
+        make test
+        lit test/
