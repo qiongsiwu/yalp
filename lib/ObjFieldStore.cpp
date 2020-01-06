@@ -36,15 +36,37 @@ struct ObjFieldStore : public PassInfoMixin<ObjFieldStore> {
     bool runOnModule(Module &M);
 };
 
-bool runOnModule(Module &M) {
-    errs() << "Module name is " << M.getName() << "\n";
+PreservedAnalyses ObjFieldStore::run(Module &M, ModuleAnalysisManager &) {
+    bool changed = runOnModule(M);
+    assert(!changed);
+    return PreservedAnalyses::all();
+}
+
+bool ObjFieldStore::runOnModule(Module &M) {
+    errs() << "Module id is " << M.getModuleIdentifier() << "\n";
     // This is an analysis pass. Nothing is changed.
     // Maybe we can pass on a data structure to the transformation pass
     return false;
 }
 
-PreservedAnalyses run(Module &M, ModuleAnalysisManager &) {
-    bool changed = runOnModule(M);
-    assert(!changed);
-    return PreservedAnalyses::all();
+// Registering the pass with the new pass manager
+PassPluginLibraryInfo getObjFieldStorePluginInfo() {
+    return {LLVM_PLUGIN_API_VERSION, "ObjFieldStore", LLVM_VERSION_STRING,
+            [](PassBuilder &PB) {
+                PB.registerPipelineParsingCallback(
+                    [](StringRef Name, ModulePassManager &MPM,
+                       ArrayRef<PassBuilder::PipelineElement>) {
+                           if (Name == "obj-field-store") {
+                               MPM.addPass(ObjFieldStore());
+                               return true;
+                           }
+                           return false;
+                       }
+                );
+            }};
+}
+
+extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo
+llvmGetPassPluginInfo() {
+    return getObjFieldStorePluginInfo();
 }
