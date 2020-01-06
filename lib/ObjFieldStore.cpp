@@ -54,16 +54,45 @@ bool ObjFieldStore::runOnModule(Module &M) {
 }
 
 void ObjFieldStore::print(raw_ostream &O, const Module *M) const {
-    errs() << "Module id is " << M->getModuleIdentifier() << "\n";
+    O << "Module id is " << M->getModuleIdentifier() << "\n";
+    O << "Store instructions are \n";
+    for (const auto* inst : all_stores) {
+        O << *inst << "\n";
+        auto pointer_op = dyn_cast<GetElementPtrInst>(inst->getPointerOperand());
+        O << "\t" << "destn type: "
+               << *(pointer_op->getSourceElementType()) << "\t";
+        int i = 0;
+        for (auto op = pointer_op->idx_begin();
+                  op != pointer_op->idx_end(); ++op) {
+            // Iterate through all operands
+            if (isa<ConstantInt>(&(**op))) {
+                auto constantIntOp = dyn_cast<ConstantInt>(&(**op));
+                O << "field " << i << " idx " << *(constantIntOp->getType()) << " ";
+                O << constantIntOp->getValue();
+            } else {
+                O << "field " << i << " is not constant";
+            }
+            O << "\t";
+            i++;
+        }
+        O << "\n";
+    }
 }
 
-bool ObjFieldStore::runOnFunction(const Function &F) {
-    for (const auto& bb : F) {
-        for (const auto& inst : bb) {
-            errs() << inst << "\n";
+bool ObjFieldStore::runOnFunction(Function &F) {
+    for (auto& bb : F) {
+        for (auto& inst : bb) {
+            Instruction *InstPtr = &inst;
+            if (isa<StoreInst>(InstPtr)) {
+                StoreInst *store = dyn_cast<StoreInst>(InstPtr);
+                auto pointer_op = store->getPointerOperand();
+                if (isa<GetElementPtrInst>(pointer_op)) {
+                    all_stores.push_back(store);
+                }
+            }
         }
     }
-    return false; 
+    return false;
 }
 
 // Registering the pass with the new pass manager

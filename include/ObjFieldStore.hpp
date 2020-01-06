@@ -27,6 +27,6 @@ private:
     std::vector<llvm::StoreInst *> all_stores;
     bool print_to_errs;
 
-    bool runOnFunction(const llvm::Function &F);
+    bool runOnFunction(llvm::Function &F);
 };
 #endif
