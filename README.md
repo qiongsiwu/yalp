@@ -1,6 +1,6 @@
 # yalp
 [![Actions Status](https://github.com/qiongsiwu/yalp/workflows/x86-ubuntu/badge.svg)](https://github.com/qiongsiwu/yalp/actions)
-[![Actions Status](https://github.com/qiongsiwu/yalp/workflows/x86-darwim/badge.svg)](https://github.com/qiongsiwu/yalp/actions)
+[![Actions Status](https://github.com/qiongsiwu/yalp/workflows/x86-darwin/badge.svg)](https://github.com/qiongsiwu/yalp/actions)
 
 Yet another repository for LLVM passes
 
