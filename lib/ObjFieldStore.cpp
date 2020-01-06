@@ -28,13 +28,9 @@
 
 #include <assert.h>
 
-using namespace llvm;
+#include "ObjFieldStore.hpp"
 
-// New pass manager interface
-struct ObjFieldStore : public PassInfoMixin<ObjFieldStore> {
-    PreservedAnalyses run(Module &M, ModuleAnalysisManager &);
-    bool runOnModule(Module &M);
-};
+using namespace llvm;
 
 PreservedAnalyses ObjFieldStore::run(Module &M, ModuleAnalysisManager &) {
     bool changed = runOnModule(M);
