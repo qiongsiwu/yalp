@@ -32,6 +32,8 @@
 
 using namespace llvm;
 
+ObjFieldStore::ObjFieldStore(bool print) : print_to_errs{print} {}
+
 PreservedAnalyses ObjFieldStore::run(Module &M, ModuleAnalysisManager &) {
     bool changed = runOnModule(M);
     assert(!changed);
@@ -39,10 +41,29 @@ PreservedAnalyses ObjFieldStore::run(Module &M, ModuleAnalysisManager &) {
 }
 
 bool ObjFieldStore::runOnModule(Module &M) {
-    errs() << "Module id is " << M.getModuleIdentifier() << "\n";
+    for (auto& F : M) {
+        runOnFunction(F);
+    }
+
+    if (print_to_errs) {
+        print(errs(), &M);
+    }
     // This is an analysis pass. Nothing is changed.
     // Maybe we can pass on a data structure to the transformation pass
     return false;
+}
+
+void ObjFieldStore::print(raw_ostream &O, const Module *M) const {
+    errs() << "Module id is " << M->getModuleIdentifier() << "\n";
+}
+
+bool ObjFieldStore::runOnFunction(const Function &F) {
+    for (const auto& bb : F) {
+        for (const auto& inst : bb) {
+            errs() << inst << "\n";
+        }
+    }
+    return false; 
 }
 
 // Registering the pass with the new pass manager
@@ -53,7 +74,10 @@ PassPluginLibraryInfo getObjFieldStorePluginInfo() {
                     [](StringRef Name, ModulePassManager &MPM,
                        ArrayRef<PassBuilder::PipelineElement>) {
                            if (Name == "obj-field-store") {
-                               MPM.addPass(ObjFieldStore());
+                               MPM.addPass(ObjFieldStore(false));
+                               return true;
+                           } else if (Name == "print<obj-field-store>") {
+                               MPM.addPass(ObjFieldStore(true));
                                return true;
                            }
                            return false;
