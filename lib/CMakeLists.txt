@@ -2,12 +2,16 @@
 # ======================================================
 set(YALP_PLUGINS
     Hello
-    #StaticCallCounter
+    ObjFieldStore
     #DynamicCallCounter
     )
 
 set(Hello_SOURCES
   hello.cpp)
+
+set(ObjFieldStore_SOURCES
+  ObjFieldStore.cpp)
+
 #set(DynamicCallCounter_SOURCES
 #  DynamicCallCounter.cpp)
 #set(InjectFuncCall_SOURCES
