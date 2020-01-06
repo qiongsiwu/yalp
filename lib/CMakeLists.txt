@@ -3,11 +3,15 @@
 set(YALP_PLUGINS
     Hello
     ObjFieldStore
+    TrivialModulePass 
     #DynamicCallCounter
     )
 
 set(Hello_SOURCES
   hello.cpp)
+
+set(TrivialModulePass_SOURCES
+  TrivialModulePass.cpp)
 
 set(ObjFieldStore_SOURCES
   ObjFieldStore.cpp)
