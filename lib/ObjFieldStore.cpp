@@ -58,24 +58,46 @@ void ObjFieldStore::print(raw_ostream &O, const Module *M) const {
     O << "Store instructions are \n";
     for (const auto* inst : all_stores) {
         O << *inst << "\n";
-        auto pointer_op = dyn_cast<GetElementPtrInst>(inst->getPointerOperand());
-        O << "\t" << "destn type: "
-               << *(pointer_op->getSourceElementType()) << "\t";
-        int i = 0;
-        for (auto op = pointer_op->idx_begin();
-                  op != pointer_op->idx_end(); ++op) {
-            // Iterate through all operands
-            if (isa<ConstantInt>(&(**op))) {
-                auto constantIntOp = dyn_cast<ConstantInt>(&(**op));
-                O << "field " << i << " idx " << *(constantIntOp->getType()) << " ";
-                O << constantIntOp->getValue();
-            } else {
-                O << "field " << i << " is not constant";
+
+        if (isa<GetElementPtrInst>(inst->getPointerOperand())) {
+            auto pointer_op = dyn_cast<GetElementPtrInst>(inst->getPointerOperand());
+            O << "\t" << "destn type: "
+                   << *(pointer_op->getSourceElementType()) << "\t";
+            int i = 0;
+            for (auto op = pointer_op->idx_begin();
+                      op != pointer_op->idx_end(); ++op) {
+                // Iterate through all operands
+                if (isa<ConstantInt>(&(**op))) {
+                    auto constantIntOp = dyn_cast<ConstantInt>(&(**op));
+                    O << "field " << i << " idx " << *(constantIntOp->getType()) << " ";
+                    O << constantIntOp->getValue();
+                } else {
+                    O << "field " << i << " is not constant";
+                }
+                O << "\t";
+                i++;
             }
-            O << "\t";
-            i++;
+            O << "\n";
+        } else if (isa<GEPOperator>(inst->getPointerOperand())) {
+            auto pointer_op = dyn_cast<GEPOperator>(inst->getPointerOperand());
+            O << "\t" << "destn type: "
+                   << *(pointer_op->getSourceElementType()) << "\t";
+            int i = 0;
+            for (auto op = pointer_op->idx_begin();
+                      op != pointer_op->idx_end(); ++op) {
+                // Iterate through all operands
+                if (isa<ConstantInt>(&(**op))) {
+                    auto constantIntOp = dyn_cast<ConstantInt>(&(**op));
+                    O << "field " << i << " idx " << *(constantIntOp->getType()) << " ";
+                    O << constantIntOp->getValue();
+                } else {
+                    O << "field " << i << " is not constant";
+                }
+                O << "\t";
+                i++;
+            }
+            O << "\n";
         }
-        O << "\n";
     }
 }
 
@@ -86,7 +108,8 @@ bool ObjFieldStore::runOnFunction(Function &F) {
             if (isa<StoreInst>(InstPtr)) {
                 StoreInst *store = dyn_cast<StoreInst>(InstPtr);
                 auto pointer_op = store->getPointerOperand();
-                if (isa<GetElementPtrInst>(pointer_op)) {
+                if (isa<GetElementPtrInst>(pointer_op)
+                 || isa<GEPOperator>(pointer_op)) {
                     all_stores.push_back(store);
                 }
             }
