@@ -88,3 +88,7 @@ add_subdirectory(lib)
 #add_subdirectory(tools)
 add_subdirectory(test)
 #add_subdirectory(HelloWorld)
+
+# Adding unit tests
+enable_testing()
+add_subdirectory(unittests)
