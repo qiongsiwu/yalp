@@ -3,31 +3,22 @@
 set(YALP_PLUGINS
     Hello
     ObjFieldStore
-    TrivialModulePass 
+    TrivialModulePass
     #DynamicCallCounter
     )
 
-set(Hello_SOURCES
-  hello.cpp)
+set(Hello_SOURCES hello.cpp)
 
-set(TrivialModulePass_SOURCES
-  TrivialModulePass.cpp)
+set(TrivialModulePass_SOURCES TrivialModulePass.cpp)
 
-set(ObjFieldStore_SOURCES
-  ObjFieldStore.cpp)
+set(ObjFieldStore_SOURCES ObjFieldStore.cpp)
 
-#set(DynamicCallCounter_SOURCES
-#  DynamicCallCounter.cpp)
-#set(InjectFuncCall_SOURCES
-#  InjectFuncCall.cpp)
 #set(MBAAdd_SOURCES
 #  MBAAdd.cpp
 #  Ratio.cpp)
 #set(MBASub_SOURCES
 #  MBASub.cpp
 #  Ratio.cpp)
-#set(RIV_SOURCES
-#  RIV.cpp)
 #set(DuplicateBB_SOURCES
 #  DuplicateBB.cpp
 #  Ratio.cpp)

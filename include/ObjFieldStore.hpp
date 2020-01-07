@@ -32,7 +32,8 @@ private:
     std::vector<llvm::StoreInst *> all_stores;
     bool print_to_errs;
 
-    bool runOnFunction(llvm::Function &F);
+    bool analyzeFunction(llvm::Function &F);
+    bool injectInstrumentation(llvm::Module &M);
 };
 
 // Legacy pass manager interface
@@ -42,7 +43,7 @@ struct LegacyObjFieldStore : public llvm::ModulePass {
     bool runOnModule(llvm::Module &M) override;
 
     const std::vector<llvm::StoreInst *>& getStores() const {
-        return Impl.getStores(); 
+        return Impl.getStores();
     }
 
 private:

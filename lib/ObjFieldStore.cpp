@@ -20,11 +20,12 @@
 //=============================================================================
 
 #include "llvm/IR/Function.h"
-#include "llvm/Pass.h"
+#include "llvm/IR/IRBuilder.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Support/raw_ostream.h"
 #include "llvm/Transforms/IPO/PassManagerBuilder.h"
+#include "llvm/Support/CommandLine.h"
 
 #include <assert.h>
 
@@ -32,25 +33,92 @@
 
 using namespace llvm;
 
+#define DEBUG_TYPE "object-field-store"
+
+static cl::opt<bool> AnalysisOnly ("analysis-only",
+    cl::desc("Filter the relevant stores, but do not insert instrumentation"));
+
 ObjFieldStore::ObjFieldStore(bool print) : print_to_errs{print} {}
 
 PreservedAnalyses ObjFieldStore::run(Module &M, ModuleAnalysisManager &) {
     bool changed = runOnModule(M);
-    assert(!changed);
-    return PreservedAnalyses::all();
+    if (!changed) {
+        return PreservedAnalyses::all();
+    } else {
+        return PreservedAnalyses::none();
+    }
 }
 
 bool ObjFieldStore::runOnModule(Module &M) {
     for (auto& F : M) {
-        runOnFunction(F);
+        analyzeFunction(F);
     }
 
-    if (print_to_errs) {
+    if (print_to_errs || AnalysisOnly) {
         print(errs(), &M);
+        return false;
     }
-    // This is an analysis pass. Nothing is changed.
-    // Maybe we can pass on a data structure to the transformation pass
+
+    return injectInstrumentation(M);
+}
+
+bool ObjFieldStore::analyzeFunction(Function &F) {
+    for (auto& bb : F) {
+        for (auto& inst : bb) {
+            Instruction *InstPtr = &inst;
+            if (isa<StoreInst>(InstPtr)) {
+                StoreInst *store = dyn_cast<StoreInst>(InstPtr);
+                auto pointer_op = store->getPointerOperand();
+                if (isa<GetElementPtrInst>(pointer_op)
+                 || isa<GEPOperator>(pointer_op)) {
+                    all_stores.push_back(store);
+                }
+            }
+        }
+    }
     return false;
+}
+
+bool ObjFieldStore::injectInstrumentation(Module &M) {
+    bool changed = false;
+    // Step 1 create the function to inject
+    // 1.1 create function prototype and insert it into the module
+    auto &CTX = M.getContext();
+    PointerType *PrintfArgTy = PointerType::getUnqual(Type::getInt8Ty(CTX));
+    FunctionType *PrintfTy = FunctionType::get(
+        IntegerType::getInt32Ty(CTX), PrintfArgTy, /*IsVarArgs*/true);
+    FunctionCallee Printf = M.getOrInsertFunction("printf", PrintfTy);
+    // 1.2 set attributes
+    Function *PrintF = dyn_cast<Function>(Printf.getCallee());
+    PrintF->setDoesNotThrow();
+    PrintF->addParamAttr(0, Attribute::NoCapture);
+    PrintF->addParamAttr(0, Attribute::ReadOnly);
+
+    // 1.3 create a global constant for the format string
+    Constant *PrintfFormatStr = ConstantDataArray::getString(
+        CTX, "Seen a relevant store instruction! %s\n");
+
+    Constant *PrintfFormatStrVar =
+        M.getOrInsertGlobal("PrintfFormatStr", PrintfFormatStr->getType());
+
+    dyn_cast<GlobalVariable>(PrintfFormatStrVar)->setInitializer(PrintfFormatStr);
+
+    // Step 2 Inject the function before each store
+    for (auto inst : all_stores) {
+        IRBuilder<> Builder(inst);
+
+        auto tempName = Builder.CreateGlobalStringPtr("AAAAA");
+
+        Value *FormatStrPtr = Builder.CreatePointerCast(
+            PrintfFormatStrVar, PrintfArgTy, "formatStr");
+
+        Builder.CreateCall(
+            Printf, {FormatStrPtr, tempName});
+
+        changed = true;
+    }
+
+    return changed;
 }
 
 void ObjFieldStore::print(raw_ostream &O, const Module *M) const {
@@ -99,23 +167,6 @@ void ObjFieldStore::print(raw_ostream &O, const Module *M) const {
             O << "\n";
         }
     }
-}
-
-bool ObjFieldStore::runOnFunction(Function &F) {
-    for (auto& bb : F) {
-        for (auto& inst : bb) {
-            Instruction *InstPtr = &inst;
-            if (isa<StoreInst>(InstPtr)) {
-                StoreInst *store = dyn_cast<StoreInst>(InstPtr);
-                auto pointer_op = store->getPointerOperand();
-                if (isa<GetElementPtrInst>(pointer_op)
-                 || isa<GEPOperator>(pointer_op)) {
-                    all_stores.push_back(store);
-                }
-            }
-        }
-    }
-    return false;
 }
 
 bool LegacyObjFieldStore::runOnModule(Module &M) {

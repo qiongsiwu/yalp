@@ -1,5 +1,7 @@
 ; RUN:  opt -load-pass-plugin  %shlibdir/libObjFieldStore%shlibext -passes="print<obj-field-store>" -disable-output 2>&1 %s\
 ; RUN:   | FileCheck %s
+; RUN:  opt -load %shlibdir/libObjFieldStore%shlibext -legacy-obj-field-store -analysis-only -disable-output 2>&1 %s\
+; RUN:   | FileCheck %s
 
 ; Sanity check to see if the pass can filter out stores to sources from a GEP
 
