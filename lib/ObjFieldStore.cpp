@@ -21,6 +21,7 @@
 
 #include "llvm/IR/Function.h"
 #include "llvm/IR/IRBuilder.h"
+#include "llvm/IR/TypeFinder.h"
 #include "llvm/Passes/PassBuilder.h"
 #include "llvm/Passes/PassPlugin.h"
 #include "llvm/Support/raw_ostream.h"
@@ -28,12 +29,24 @@
 #include "llvm/Support/CommandLine.h"
 
 #include <assert.h>
+#include <map>
 
 #include "ObjFieldStore.hpp"
 
 using namespace llvm;
 
 #define DEBUG_TYPE "object-field-store"
+
+// Helper functions
+Constant *createGlobalStringConstant(
+    LLVMContext &CTX, Module &M, StringRef VarName, StringRef Value) {
+    Constant *Str = ConstantDataArray::getString(CTX, Value);
+    Constant *StrVar = M.getOrInsertGlobal(VarName, Str->getType());
+    dyn_cast<GlobalVariable>(StrVar)->setInitializer(Str);
+    return StrVar;
+}
+
+// Main llvm pass
 
 static cl::opt<bool> AnalysisOnly ("analysis-only",
     cl::desc("Filter the relevant stores, but do not insert instrumentation"));
@@ -95,25 +108,57 @@ bool ObjFieldStore::injectInstrumentation(Module &M) {
     PrintF->addParamAttr(0, Attribute::ReadOnly);
 
     // 1.3 create a global constant for the format string
-    Constant *PrintfFormatStr = ConstantDataArray::getString(
-        CTX, "Seen a relevant store instruction! %s\n");
-
-    Constant *PrintfFormatStrVar =
-        M.getOrInsertGlobal("PrintfFormatStr", PrintfFormatStr->getType());
-
-    dyn_cast<GlobalVariable>(PrintfFormatStrVar)->setInitializer(PrintfFormatStr);
+    Constant *PrintfFormatStrVar = createGlobalStringConstant(
+        CTX, M, "PrintFormatStr", "[ValueProf] %s\n");
 
     // Step 2 Inject the function before each store
+    std::map<Type *, Constant *> StructTypeNames;
+    TypeFinder StructTypes;
+    StructTypes.run(M, true);
+
+    unsigned int sCounter = 1;
+    for (auto *STy : StructTypes) {
+        std::string type_str;
+        raw_string_ostream rso(type_str);
+        STy->print(rso);
+
+        std::string type_id;
+        raw_string_ostream tyidso(type_id);
+        tyidso << "struct_" << sCounter;
+
+        Constant *StructName = createGlobalStringConstant(
+            CTX, M, tyidso.str(), rso.str());
+
+        StructTypeNames.insert(
+            std::pair<Type *, Constant *>(STy, StructName));
+        sCounter++;
+    }
+
     for (auto inst : all_stores) {
         IRBuilder<> Builder(inst);
 
-        auto tempName = Builder.CreateGlobalStringPtr("AAAAA");
+        auto pointer_op = dyn_cast<GetElementPtrInst>(inst->getPointerOperand());
+
+        pointer_op->getSourceElementType();
+        auto it = StructTypeNames.find(pointer_op->getSourceElementType());
+        Constant *SName;
+        if (it == StructTypeNames.end()) {
+            errs() << "Struct name not found for "
+                   << *(pointer_op->getSourceElementType())
+                   << "\n";
+            Constant *Unknown = createGlobalStringConstant(
+                CTX, M, "unknown_struct", "Unknown");
+
+            SName = Unknown;
+        } else {
+            SName = it->second;
+        }
 
         Value *FormatStrPtr = Builder.CreatePointerCast(
             PrintfFormatStrVar, PrintfArgTy, "formatStr");
 
         Builder.CreateCall(
-            Printf, {FormatStrPtr, tempName});
+            Printf, {FormatStrPtr, SName});
 
         changed = true;
     }
