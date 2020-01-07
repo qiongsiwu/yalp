@@ -118,6 +118,10 @@ bool ObjFieldStore::runOnFunction(Function &F) {
     return false;
 }
 
+bool LegacyObjFieldStore::runOnModule(Module &M) {
+    return Impl.runOnModule(M);
+}
+
 // Registering the pass with the new pass manager
 PassPluginLibraryInfo getObjFieldStorePluginInfo() {
     return {LLVM_PLUGIN_API_VERSION, "ObjFieldStore", LLVM_VERSION_STRING,
@@ -142,3 +146,8 @@ extern "C" LLVM_ATTRIBUTE_WEAK ::llvm::PassPluginLibraryInfo
 llvmGetPassPluginInfo() {
     return getObjFieldStorePluginInfo();
 }
+
+// Registering the pass with the old pass manager
+char LegacyObjFieldStore::ID = 0;
+static RegisterPass<LegacyObjFieldStore> X ("legacy-obj-field-store",
+    "legacy-obj-FS", true, true);

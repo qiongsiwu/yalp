@@ -23,10 +23,29 @@ struct ObjFieldStore : public llvm::PassInfoMixin<ObjFieldStore> {
     bool runOnModule(llvm::Module &M);
 
     virtual void print(llvm::raw_ostream &O, const llvm::Module *M) const;
+
+    const std::vector<llvm::StoreInst *>& getStores() const {
+        return all_stores;
+    }
+
 private:
     std::vector<llvm::StoreInst *> all_stores;
     bool print_to_errs;
 
     bool runOnFunction(llvm::Function &F);
+};
+
+// Legacy pass manager interface
+struct LegacyObjFieldStore : public llvm::ModulePass {
+    static char ID;
+    LegacyObjFieldStore() : ModulePass(ID), Impl(false){}
+    bool runOnModule(llvm::Module &M) override;
+
+    const std::vector<llvm::StoreInst *>& getStores() const {
+        return Impl.getStores(); 
+    }
+
+private:
+    ObjFieldStore Impl;
 };
 #endif
