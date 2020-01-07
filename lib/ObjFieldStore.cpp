@@ -109,7 +109,7 @@ bool ObjFieldStore::injectInstrumentation(Module &M) {
 
     // 1.3 create a global constant for the format string
     Constant *PrintfFormatStrVar = createGlobalStringConstant(
-        CTX, M, "PrintFormatStr", "[ValueProf] %s\n");
+        CTX, M, "PrintFormatStr", "[ValueProf] | %s | %d | %d\n");
 
     // Step 2 Inject the function before each store
     std::map<Type *, Constant *> StructTypeNames;
@@ -157,8 +157,14 @@ bool ObjFieldStore::injectInstrumentation(Module &M) {
         Value *FormatStrPtr = Builder.CreatePointerCast(
             PrintfFormatStrVar, PrintfArgTy, "formatStr");
 
+        auto IndexIntoField = pointer_op->idx_begin();
+        auto IndexOp =
+            dyn_cast<ConstantInt>(&(**(++IndexIntoField)));
         Builder.CreateCall(
-            Printf, {FormatStrPtr, SName});
+            Printf, {FormatStrPtr,
+                     SName,
+                     IndexOp,
+                     inst->getValueOperand()});
 
         changed = true;
     }

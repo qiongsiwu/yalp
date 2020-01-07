@@ -8,6 +8,6 @@ struct node {
 int main() {
     struct node N;
     N.next = NULL;
-    N.value = 1;
+    N.value = 5;
     printf("Value of N is %d\n", N.value);
 }
