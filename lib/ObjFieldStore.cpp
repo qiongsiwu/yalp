@@ -92,6 +92,46 @@ bool ObjFieldStore::analyzeFunction(Function &F) {
     return false;
 }
 
+template <typename T>
+bool createInstrumentationInstructions(
+    T *pointer_op, std::map<Type *, Constant *> StructTypeNames,
+    StoreInst *StrInst, Module &M, FunctionCallee &Printf,
+    Constant *PrintfFormatStrVar, PointerType *PrintfArgTy, unsigned &uCounter) {
+    IRBuilder<> Builder(StrInst);
+    auto& CTX = M.getContext();
+
+    auto it = StructTypeNames.find(pointer_op->getSourceElementType());
+    Constant *Name = nullptr;
+
+    if (it == StructTypeNames.end()) {
+        std::string arr_id;
+        raw_string_ostream arrid_so(arr_id);
+        arrid_so << "arr_" << uCounter;
+        uCounter++;
+
+        std::string arr_str;
+        raw_string_ostream rso(arr_str);
+        pointer_op->getType()->print(rso);
+
+        Constant *ArrConst =
+            createGlobalStringConstant(CTX, M, arrid_so.str(), rso.str());
+
+        Name = ArrConst;
+    } else {
+        Name = it->second;
+    }
+
+    Value *FormatStrPtr =
+        Builder.CreatePointerCast(PrintfFormatStrVar, PrintfArgTy, "formatStr");
+
+    auto IndexIntoField = pointer_op->idx_begin();
+    auto IndexOp = dyn_cast<ConstantInt>(&(**(++IndexIntoField)));
+    Builder.CreateCall(Printf, {FormatStrPtr, Name, pointer_op, IndexOp,
+                                StrInst->getValueOperand()});
+
+    return true;
+}
+
 bool ObjFieldStore::injectInstrumentation(Module &M) {
     bool changed = false;
     // Step 1 create the function to inject
@@ -109,13 +149,14 @@ bool ObjFieldStore::injectInstrumentation(Module &M) {
 
     // 1.3 create a global constant for the format string
     Constant *PrintfFormatStrVar = createGlobalStringConstant(
-        CTX, M, "PrintFormatStr", "[ValueProf] | %s | %d | %d\n");
+        CTX, M, "PrintFormatStr", "[ValueProf] | %s | %p | %d | %d\n");
 
     // Step 2 Inject the function before each store
     std::map<Type *, Constant *> StructTypeNames;
     TypeFinder StructTypes;
     StructTypes.run(M, true);
 
+    // Set up a table with the names of the structs
     unsigned int sCounter = 1;
     for (auto *STy : StructTypes) {
         std::string type_str;
@@ -134,39 +175,26 @@ bool ObjFieldStore::injectInstrumentation(Module &M) {
         sCounter++;
     }
 
+    unsigned int uCounter = 1;
     for (auto inst : all_stores) {
         IRBuilder<> Builder(inst);
 
         auto pointer_op = dyn_cast<GetElementPtrInst>(inst->getPointerOperand());
 
-        pointer_op->getSourceElementType();
-        auto it = StructTypeNames.find(pointer_op->getSourceElementType());
-        Constant *SName;
-        if (it == StructTypeNames.end()) {
-            errs() << "Struct name not found for "
-                   << *(pointer_op->getSourceElementType())
-                   << "\n";
-            Constant *Unknown = createGlobalStringConstant(
-                CTX, M, "unknown_struct", "Unknown");
-
-            SName = Unknown;
+        if (pointer_op) {
+            pointer_op->getSourceElementType();
+            changed = createInstrumentationInstructions<GetElementPtrInst>(
+                pointer_op, StructTypeNames, inst, M, Printf,
+                PrintfFormatStrVar, PrintfArgTy, uCounter);
         } else {
-            SName = it->second;
+          // the pointer operand must be a GEP operator
+          auto GEPOp = dyn_cast<GEPOperator>(inst->getPointerOperand());
+          assert(GEPOp);
+
+          changed = createInstrumentationInstructions<GEPOperator>(
+              GEPOp, StructTypeNames, inst, M, Printf,
+              PrintfFormatStrVar, PrintfArgTy, uCounter);
         }
-
-        Value *FormatStrPtr = Builder.CreatePointerCast(
-            PrintfFormatStrVar, PrintfArgTy, "formatStr");
-
-        auto IndexIntoField = pointer_op->idx_begin();
-        auto IndexOp =
-            dyn_cast<ConstantInt>(&(**(++IndexIntoField)));
-        Builder.CreateCall(
-            Printf, {FormatStrPtr,
-                     SName,
-                     IndexOp,
-                     inst->getValueOperand()});
-
-        changed = true;
     }
 
     return changed;
