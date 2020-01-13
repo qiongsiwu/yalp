@@ -38,15 +38,6 @@ using namespace llvm;
 
 #define DEBUG_TYPE "object-field-store"
 
-// Helper functions
-Constant *createGlobalStringConstant(
-    LLVMContext &CTX, Module &M, StringRef VarName, StringRef Value) {
-    Constant *Str = ConstantDataArray::getString(CTX, Value);
-    Constant *StrVar = M.getOrInsertGlobal(VarName, Str->getType());
-    dyn_cast<GlobalVariable>(StrVar)->setInitializer(Str);
-    return StrVar;
-}
-
 // Main llvm pass
 
 static cl::opt<bool> AnalysisOnly ("analysis-only",
@@ -93,6 +84,31 @@ bool ObjFieldStore::analyzeFunction(Function &F) {
     return false;
 }
 
+// Helper functions
+Constant *createGlobalStringConstant(
+    LLVMContext &CTX, Module &M, StringRef VarName, StringRef Value) {
+    Constant *Str = ConstantDataArray::getString(CTX, Value);
+    Constant *StrVar = M.getOrInsertGlobal(VarName, Str->getType());
+    dyn_cast<GlobalVariable>(StrVar)->setInitializer(Str);
+    return StrVar;
+}
+
+static const std::string IntegerFormat = "| %d ";
+static const std::string PointerFormat = "| %p ";
+
+const std::string &getPrintFmtForType(Type *t) {
+    // Extend to other types later
+    if (isa<PointerType>(t)) {
+        errs() << "Found pointer type!\n";
+        return PointerFormat;
+    } else {
+        errs() << "Found other type!\n";
+        return IntegerFormat;
+    }
+}
+
+// end of helpers
+
 template <typename T>
 bool createInstrumentationInstructions(
     T *pointer_op, std::map<Type *, Constant *> StructTypeNames,
@@ -134,7 +150,9 @@ bool createInstrumentationInstructions(
     }
 
     // For the value operand. This need to be changed to deal with more types!
-    FormatString.append("| %d \n");
+    FormatString.append(
+        getPrintFmtForType(StrInst->getValueOperand()->getType()));
+    FormatString.append("\n");
 
     Constant *PrintFormatStrPtr;
     auto fstrIter = PrintFormatStrs.find(numIdxes);
