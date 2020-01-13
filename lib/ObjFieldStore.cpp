@@ -99,10 +99,8 @@ static const std::string PointerFormat = "| %p ";
 const std::string &getPrintFmtForType(Type *t) {
     // Extend to other types later
     if (isa<PointerType>(t)) {
-        errs() << "Found pointer type!\n";
         return PointerFormat;
     } else {
-        errs() << "Found other type!\n";
         return IntegerFormat;
     }
 }
