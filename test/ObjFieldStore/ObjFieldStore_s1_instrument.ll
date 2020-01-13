@@ -3,12 +3,11 @@
 
 ; Check to see if the transformation gets simple case correct
 
-; The format string
-; CHECK: @PrintFormatStr = global [33 x i8] c"[ValueProf] | %s | %p | %d | %d\0A\00"
-
 ; String for the struct
-; CHECK-NEXT: @struct_1 = global [36 x i8] c"%struct.s1 = type { i32, i16, i64 }\00"
+; CHECK: @struct_1 = global [36 x i8] c"%struct.s1 = type { i32, i16, i64 }\00"
 
+; The format string
+; CHECK-NEXT: @PrintFormatStr_2 = global [39 x i8] c"[ValueProf] | %s | %p | %d | %d | %d \0A\00"
 
 %struct.s1 = type { i32, i16, i64 }
 

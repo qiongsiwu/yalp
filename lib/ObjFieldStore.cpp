@@ -30,6 +30,7 @@
 
 #include <assert.h>
 #include <map>
+#include <vector>
 
 #include "ObjFieldStore.hpp"
 
@@ -95,8 +96,9 @@ bool ObjFieldStore::analyzeFunction(Function &F) {
 template <typename T>
 bool createInstrumentationInstructions(
     T *pointer_op, std::map<Type *, Constant *> StructTypeNames,
+    std::map<int, Constant *>PrintFormatStrs,
     StoreInst *StrInst, Module &M, FunctionCallee &Printf,
-    Constant *PrintfFormatStrVar, PointerType *PrintfArgTy, unsigned &uCounter) {
+    PointerType *PrintfArgTy, unsigned &uCounter) {
     IRBuilder<> Builder(StrInst);
     auto& CTX = M.getContext();
 
@@ -121,13 +123,41 @@ bool createInstrumentationInstructions(
         Name = it->second;
     }
 
-    Value *FormatStrPtr =
-        Builder.CreatePointerCast(PrintfFormatStrVar, PrintfArgTy, "formatStr");
+    std::string FormatString = "[ValueProf] | %s | %p ";
+    int numIdxes = 0;
+    std::vector<Value *> args{Name, pointer_op};
+    for (auto op = pointer_op->idx_begin();
+              op != pointer_op->idx_end(); ++op) {
+        FormatString.append("| %d ");
+        args.push_back(*op);
+        numIdxes++;
+    }
 
-    auto IndexIntoField = pointer_op->idx_begin();
-    auto IndexOp = dyn_cast<ConstantInt>(&(**(++IndexIntoField)));
-    Builder.CreateCall(Printf, {FormatStrPtr, Name, pointer_op, IndexOp,
-                                StrInst->getValueOperand()});
+    // For the value operand. This need to be changed to deal with more types!
+    FormatString.append("| %d \n");
+
+    Constant *PrintFormatStrPtr;
+    auto fstrIter = PrintFormatStrs.find(numIdxes);
+    if (fstrIter == PrintFormatStrs.end()) {
+        std::string var_name;
+        raw_string_ostream rso(var_name);
+        rso << "PrintFormatStr_" << numIdxes;
+        Constant *NewStringConst =
+            createGlobalStringConstant(CTX, M, rso.str(), FormatString);
+        PrintFormatStrs.insert(
+            std::pair<int, Constant *>(numIdxes, NewStringConst));
+        PrintFormatStrPtr = NewStringConst;
+    } else {
+        PrintFormatStrPtr = fstrIter->second;
+    }
+
+    Value *FormatStrPtr =
+        Builder.CreatePointerCast(PrintFormatStrPtr, PrintfArgTy, "formatStr");
+
+    args.insert(args.begin(), FormatStrPtr);
+    args.push_back(StrInst->getValueOperand());
+
+    Builder.CreateCall(Printf, args);
 
     return true;
 }
@@ -147,14 +177,12 @@ bool ObjFieldStore::injectInstrumentation(Module &M) {
     PrintF->addParamAttr(0, Attribute::NoCapture);
     PrintF->addParamAttr(0, Attribute::ReadOnly);
 
-    // 1.3 create a global constant for the format string
-    Constant *PrintfFormatStrVar = createGlobalStringConstant(
-        CTX, M, "PrintFormatStr", "[ValueProf] | %s | %p | %d | %d\n");
-
     // Step 2 Inject the function before each store
     std::map<Type *, Constant *> StructTypeNames;
     TypeFinder StructTypes;
     StructTypes.run(M, true);
+
+    std::map<int, Constant *> PrintFormatStrs;
 
     // Set up a table with the names of the structs
     unsigned int sCounter = 1;
@@ -184,16 +212,17 @@ bool ObjFieldStore::injectInstrumentation(Module &M) {
         if (pointer_op) {
             pointer_op->getSourceElementType();
             changed = createInstrumentationInstructions<GetElementPtrInst>(
-                pointer_op, StructTypeNames, inst, M, Printf,
-                PrintfFormatStrVar, PrintfArgTy, uCounter);
+                pointer_op, StructTypeNames, PrintFormatStrs,
+                inst, M, Printf, PrintfArgTy,
+                uCounter);
         } else {
           // the pointer operand must be a GEP operator
           auto GEPOp = dyn_cast<GEPOperator>(inst->getPointerOperand());
           assert(GEPOp);
 
           changed = createInstrumentationInstructions<GEPOperator>(
-              GEPOp, StructTypeNames, inst, M, Printf,
-              PrintfFormatStrVar, PrintfArgTy, uCounter);
+              GEPOp, StructTypeNames, PrintFormatStrs,
+              inst, M, Printf, PrintfArgTy, uCounter);
         }
     }
 
