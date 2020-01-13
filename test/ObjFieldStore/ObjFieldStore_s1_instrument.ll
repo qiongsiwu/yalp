@@ -6,8 +6,15 @@
 ; String for the struct
 ; CHECK: @struct_1 = global [36 x i8] c"%struct.s1 = type { i32, i16, i64 }\00"
 
+; String for types
+; CHECK-NEXT: @arr_1 = global [4 x i8] c"i32\00"
+
 ; The format string
-; CHECK-NEXT: @PrintFormatStr_2 = global [39 x i8] c"[ValueProf] | %s | %p | %d | %d | %d \0A\00"
+; CHECK-NEXT: @PrintFormatStr_2 = global [44 x i8] c"[ValueProf] | %s | %s | %p | %d | %d | %d \0A\00"
+
+; More types
+; CHECK-NEXT: @arr_2 = global [4 x i8] c"i16\00"
+; CHECK-NEXT: @arr_3 = global [4 x i8] c"i64\00"
 
 %struct.s1 = type { i32, i16, i64 }
 

@@ -105,6 +105,29 @@ const std::string &getPrintFmtForType(Type *t) {
     }
 }
 
+Constant *getStructName(std::map<Type *, Constant *> NameDict, Type *t,
+                        unsigned &arrCounter, LLVMContext &CTX, Module &M) {
+  auto it = NameDict.find(t);
+
+  if (it == NameDict.end()) {
+      std::string arr_id;
+      raw_string_ostream arrid_so(arr_id);
+      arrid_so << "arr_" << arrCounter;
+      arrCounter++;
+
+      std::string arr_str;
+      raw_string_ostream rso(arr_str);
+      t->print(rso);
+
+      Constant *ArrConst =
+          createGlobalStringConstant(CTX, M, arrid_so.str(), rso.str());
+
+      return ArrConst;
+  } else {
+      return it->second;
+  }
+}
+
 // end of helpers
 
 template <typename T>
@@ -116,30 +139,17 @@ bool createInstrumentationInstructions(
     IRBuilder<> Builder(StrInst);
     auto& CTX = M.getContext();
 
-    auto it = StructTypeNames.find(pointer_op->getSourceElementType());
-    Constant *Name = nullptr;
+    Constant *SourceTypeName =
+        getStructName(StructTypeNames, pointer_op->getSourceElementType(),
+                      uCounter, CTX, M);
 
-    if (it == StructTypeNames.end()) {
-        std::string arr_id;
-        raw_string_ostream arrid_so(arr_id);
-        arrid_so << "arr_" << uCounter;
-        uCounter++;
+    Constant *ResultTypeName =
+        getStructName(StructTypeNames, pointer_op->getResultElementType(),
+                      uCounter, CTX, M);
 
-        std::string arr_str;
-        raw_string_ostream rso(arr_str);
-        pointer_op->getType()->print(rso);
-
-        Constant *ArrConst =
-            createGlobalStringConstant(CTX, M, arrid_so.str(), rso.str());
-
-        Name = ArrConst;
-    } else {
-        Name = it->second;
-    }
-
-    std::string FormatString = "[ValueProf] | %s | %p ";
+    std::string FormatString = "[ValueProf] | %s | %s | %p ";
     int numIdxes = 0;
-    std::vector<Value *> args{Name, pointer_op};
+    std::vector<Value *> args{SourceTypeName, ResultTypeName, pointer_op};
     for (auto op = pointer_op->idx_begin();
               op != pointer_op->idx_end(); ++op) {
         FormatString.append("| %d ");
@@ -226,7 +236,6 @@ bool ObjFieldStore::injectInstrumentation(Module &M) {
         auto pointer_op = dyn_cast<GetElementPtrInst>(inst->getPointerOperand());
 
         if (pointer_op) {
-            pointer_op->getSourceElementType();
             changed = createInstrumentationInstructions<GetElementPtrInst>(
                 pointer_op, StructTypeNames, PrintFormatStrs,
                 inst, M, Printf, PrintfArgTy,
