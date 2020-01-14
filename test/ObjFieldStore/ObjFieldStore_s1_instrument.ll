@@ -10,7 +10,7 @@
 ; CHECK-NEXT: @arr_1 = global [4 x i8] c"i32\00"
 
 ; The format string
-; CHECK-NEXT: @PrintFormatStr_2 = global [44 x i8] c"[ValueProf] | %s | %s | %p | %d | %d | %d \0A\00"
+; CHECK-NEXT: @PrintFormatStr_2_2 = global [44 x i8] c"[ValueProf] | %s | %s | %p | %d | %d | %d \0A\00"
 
 ; More types
 ; CHECK-NEXT: @arr_2 = global [4 x i8] c"i16\00"

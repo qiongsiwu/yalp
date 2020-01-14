@@ -95,12 +95,16 @@ Constant *createGlobalStringConstant(
 
 static const std::string IntegerFormat = "| %d ";
 static const std::string PointerFormat = "| %p ";
+static const int PointerTypeID = 1;
+static const int IntegerTypeID = 2;
 
-const std::string &getPrintFmtForType(Type *t) {
+const std::string &getPrintFmtForType(Type *t, int &typeID) {
     // Extend to other types later
     if (isa<PointerType>(t)) {
+        typeID = PointerTypeID;
         return PointerFormat;
     } else {
+        typeID = IntegerTypeID;
         return IntegerFormat;
     }
 }
@@ -133,7 +137,7 @@ Constant *getStructName(std::map<Type *, Constant *> NameDict, Type *t,
 template <typename T>
 bool createInstrumentationInstructions(
     T *pointer_op, std::map<Type *, Constant *> StructTypeNames,
-    std::map<int, Constant *>PrintFormatStrs,
+    std::map<std::pair<int, int>, Constant *>PrintFormatStrs,
     StoreInst *StrInst, Module &M, FunctionCallee &Printf,
     PointerType *PrintfArgTy, unsigned &uCounter) {
     IRBuilder<> Builder(StrInst);
@@ -158,23 +162,25 @@ bool createInstrumentationInstructions(
     }
 
     // For the value operand. This need to be changed to deal with more types!
+    int typeID = 0;
     FormatString.append(
-        getPrintFmtForType(StrInst->getValueOperand()->getType()));
+        getPrintFmtForType(StrInst->getValueOperand()->getType(), typeID));
     FormatString.append("\n");
 
     Constant *PrintFormatStrPtr;
-    auto fstrIter = PrintFormatStrs.find(numIdxes);
+    auto fstrKey = std::pair<int, int>(numIdxes, typeID);
+    auto fstrIter = PrintFormatStrs.find(fstrKey);
     if (fstrIter == PrintFormatStrs.end()) {
-        std::string var_name;
-        raw_string_ostream rso(var_name);
-        rso << "PrintFormatStr_" << numIdxes;
-        Constant *NewStringConst =
-            createGlobalStringConstant(CTX, M, rso.str(), FormatString);
-        PrintFormatStrs.insert(
-            std::pair<int, Constant *>(numIdxes, NewStringConst));
-        PrintFormatStrPtr = NewStringConst;
+      std::string var_name;
+      raw_string_ostream rso(var_name);
+      rso << "PrintFormatStr_" << numIdxes << "_" << typeID;
+      Constant *NewStringConst =
+          createGlobalStringConstant(CTX, M, rso.str(), FormatString);
+      PrintFormatStrs.insert(
+          std::pair<std::pair<int, int>, Constant *>(fstrKey, NewStringConst));
+      PrintFormatStrPtr = NewStringConst;
     } else {
-        PrintFormatStrPtr = fstrIter->second;
+      PrintFormatStrPtr = fstrIter->second;
     }
 
     Value *FormatStrPtr =
@@ -208,7 +214,7 @@ bool ObjFieldStore::injectInstrumentation(Module &M) {
     TypeFinder StructTypes;
     StructTypes.run(M, true);
 
-    std::map<int, Constant *> PrintFormatStrs;
+    std::map<std::pair<int, int>, Constant *> PrintFormatStrs;
 
     // Set up a table with the names of the structs
     unsigned int sCounter = 1;
